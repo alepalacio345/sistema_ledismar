@@ -25,7 +25,7 @@ const ITEMS_MENU = [
     { panel: "panel-caja",         texto: "Caja / Dinero",     icono: "💰", roles: ["master"] },
     { panel: "panel-cajeros",      texto: "Cajeras",           icono: "👥", roles: ["master"] },
     { panel: "panel-sesiones",     texto: "Accesos (Sesiones)", icono: "🕒", roles: ["master"] },
-    { panel: "panel-cuenta",       texto: "Mi Cuenta",         icono: "🔐", roles: ["master", "cajero"] },
+    { panel: "panel-cuenta",       texto: "Mi Cuenta",         icono: "🔐", roles: ["master"] },
     { panel: "panel-productos",    texto: "Productos",         icono: "📦", roles: ["cajero"] },
     { panel: "panel-registrar-venta", texto: "Registrar Venta", icono: "🛒", roles: ["cajero"] },
     { panel: "panel-mis-ventas",   texto: "Mis Ventas",        icono: "🧾", roles: ["cajero"] },
