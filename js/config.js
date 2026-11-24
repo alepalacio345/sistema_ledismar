@@ -9,8 +9,8 @@
 //  por las de tu nuevo proyecto (Dashboard -> Settings -> API).
 // ============================================================================
 
-export const SUPABASE_URL = "https://qpbiobyenospczawncbl.supabase.co";
-export const SUPABASE_ANON_KEY = "sb_publishable_If_rqLH0O3a17633ZIzZiA_09lW7feV";
+export const SUPABASE_URL = "https://cjbaxncmjcjgmbzqphae.supabase.co";
+export const SUPABASE_ANON_KEY = "sb_publishable_17Z8DcS6CxTILkDskdmEcw_YCmDc2lJ";
 
 export let db = null;
 
