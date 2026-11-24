@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Ledismar · Inventario y Ventas</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Supabase (base de datos) y jsPDF (recibos) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+    <!-- ==================================================================== -->
+    <!-- PANTALLA DE LOGIN                                                   -->
+    <!-- ==================================================================== -->
+    <section id="login-screen" class="centered-container">
+        <div class="card login-card">
+            <h1>Bodega Ledismar</h1>
+            <p class="subtitle">Sistema de Inventario y Ventas</p>
+            <div class="file-bar">
+                <span id="status-nube-login" class="status-badge">Verificando conexion...</span>
+            </div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-usuario">Usuario</label>
+                    <input type="text" id="login-usuario" placeholder="Ej. Master01" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-clave">Clave</label>
+                    <input type="password" id="login-clave" placeholder="Ingresa tu clave">
+                </div>
+                <p id="login-error" class="error-msg"></p>
+                <div class="btn-row">
+                    <button type="submit" id="btn-entrar" class="btn btn-primary">Iniciar sesion</button>
+                    <button type="button" id="btn-salir-login" class="btn btn-danger">Salir</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- ==================================================================== -->
+    <!-- PANTALLA DE SALIDA                                                  -->
+    <!-- ==================================================================== -->
+    <section id="exit-screen" class="centered-container hidden">
+        <div class="card login-card">
+            <h2>Sesion finalizada</h2>
+            <p class="subtitle">Has salido del sistema.</p>
+            <button type="button" id="btn-volver-login" class="btn btn-primary btn-full">Volver al acceso</button>
+        </div>
+    </section>
+
+    <!-- ==================================================================== -->
+    <!-- APLICACION PRINCIPAL                                                -->
+    <!-- ==================================================================== -->
+    <div id="app-screen" class="hidden">
+
+        <header class="topbar">
+            <div class="topbar-izq">
+                <button id="btn-menu" class="btn-menu" title="Abrir menu">☰</button>
+                <div>
+                    <h2>Bodega Ledismar · Inventario y Ventas</h2>
+                    <span class="status-badge connected">Sincronizado con Supabase</span>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <div class="moneda-control">
+                    <label for="select-moneda">Moneda:</label>
+                    <select id="select-moneda"></select>
+                    <span id="tasa-info" class="status-badge" title="Tasa de cambio actual"></span>
+                </div>
+                <button id="btn-sincronizar" class="btn btn-secondary">Actualizar datos</button>
+                <button id="btn-cerrar-sesion" class="btn btn-danger">Salir</button>
+            </div>
+        </header>
+
+        <div class="app-layout">
+            <aside id="sidebar" class="sidebar">
+                <div class="sidebar-header">
+                    <h3>Módulos</h3>
+                    <span id="sidebar-usuario" class="status-badge"></span>
+                </div>
+                <nav id="sidebar-nav"></nav>
+            </aside>
+            <div id="overlay-sidebar"></div>
+
+            <main class="container" id="main-content">
+                <div id="alerta-global" class="alerta hidden"></div>
+
+                <!-- ---------- PANEL: INVENTARIO (master) ---------- -->
+                <section id="panel-inventario" class="card panel hidden">
+                    <h3>Inventario</h3>
+                    <p class="subtitle">Registra, edita y elimina productos con categoría y unidad de medida.</p>
+
+                    <div id="card-producto" class="card card-inner">
+                        <h3 id="titulo-form-producto">Registrar Producto</h3>
+                        <form id="form-producto">
+                            <div class="form-row-2">
+                                <div class="form-group">
+                                    <label for="prod-id">ID / Código</label>
+                                    <input type="text" id="prod-id" placeholder="Ej. P#01" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="prod-nombre">Nombre (sin espacios)</label>
+                                    <input type="text" id="prod-nombre" placeholder="Ej. harina" required>
+                                </div>
+                            </div>
+                            <div class="form-row-2">
+                                <div class="form-group">
+                                    <label for="prod-categoria">Categoría</label>
+                                    <input type="text" id="prod-categoria" list="lista-categorias" placeholder="Ej. Alimentos">
+                                    <datalist id="lista-categorias"></datalist>
+                                </div>
+                                <div class="form-group">
+                                    <label for="prod-unidad">Unidad de medida</label>
+                                    <select id="prod-unidad"></select>
+                                </div>
+                            </div>
+                            <div class="form-row-2">
+                                <div class="form-group">
+                                    <label for="prod-cantidad">Cantidad / Existencia</label>
+                                    <input type="number" id="prod-cantidad" step="0.01" min="0" placeholder="Ej. 15" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="prod-precio">Precio Unitario (USD base)</label>
+                                    <input type="number" id="prod-precio" step="0.01" min="0" placeholder="Ej. 2.50" required>
+                                </div>
+                            </div>
+                            <div class="btn-row">
+                                <button type="submit" id="btn-guardar-producto" class="btn btn-primary">Guardar en la Nube</button>
+                                <button type="button" id="btn-cancelar-edicion" class="btn btn-outline hidden">Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="inventario-tools form-row-2">
+                        <input type="text" id="buscar-inventario" placeholder="🔍 Buscar por nombre o ID...">
+                        <input type="text" id="filtro-categoria-inv" placeholder="Filtrar por categoría...">
+                    </div>
+                    <div id="resumen-inventario" class="resumen-inventario"></div>
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Categoría</th>
+                                    <th>Unidad</th>
+                                    <th>Existencia</th>
+                                    <th>Precio</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-inventario"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- ---------- PANEL: MI NEGOCIO (master) ---------- -->
+                <section id="panel-empresa" class="card panel hidden">
+                    <h3>Mi Negocio</h3>
+                    <p class="subtitle">Estos datos aparecen en los recibos PDF.</p>
+                    <form id="form-empresa">
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="emp-nombre">Nombre del negocio</label>
+                                <input type="text" id="emp-nombre" placeholder="Ej. Bodega Ledismar">
+                            </div>
+                            <div class="form-group">
+                                <label for="emp-rif">RIF</label>
+                                <input type="text" id="emp-rif" placeholder="Ej. J-12345678-9">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-direccion">Dirección</label>
+                            <input type="text" id="emp-direccion" placeholder="Ej. Av. Bolívar, Valencia">
+                        </div>
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="emp-ciudad">Ciudad</label>
+                                <input type="text" id="emp-ciudad" placeholder="Ej. Valencia">
+                            </div>
+                            <div class="form-group">
+                                <label for="emp-telefono">Teléfono</label>
+                                <input type="text" id="emp-telefono" placeholder="Ej. 0412-1234567">
+                            </div>
+                        </div>
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="emp-correo">Correo</label>
+                                <input type="email" id="emp-correo" placeholder="Ej. contacto@bodega.com">
+                            </div>
+                            <div class="form-group">
+                                <label for="emp-propietario">Propietario</label>
+                                <input type="text" id="emp-propietario" placeholder="Nombre del dueño">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-notas">Notas</label>
+                            <input type="text" id="emp-notas" placeholder="Otra información...">
+                        </div>
+                        <button type="submit" id="btn-guardar-empresa" class="btn btn-primary">Guardar datos del negocio</button>
+                    </form>
+                </section>
+
+                <!-- ---------- PANEL: VENTAS (master) ---------- -->
+                <section id="panel-ventas" class="card panel hidden">
+                    <h3>Ventas de las Cajeras</h3>
+                    <p class="subtitle">Todas las ventas registradas. Usa los filtros para ver un día, un mes, por monto o por producto.</p>
+
+                    <div class="filtros-box">
+                        <h3>Filtrar Ventas</h3>
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="filtro-v-desde">Desde</label>
+                                <input type="date" id="filtro-v-desde">
+                            </div>
+                            <div class="form-group">
+                                <label for="filtro-v-hasta">Hasta</label>
+                                <input type="date" id="filtro-v-hasta">
+                            </div>
+                            <div class="form-group">
+                                <label for="filtro-v-cajero">Cajera</label>
+                                <select id="filtro-v-cajero"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="filtro-v-producto">Producto (nombre)</label>
+                                <input type="text" id="filtro-v-producto" placeholder="Buscar producto...">
+                            </div>
+                            <div class="form-group">
+                                <label for="filtro-v-monto-min">Monto mín. (USD)</label>
+                                <input type="number" id="filtro-v-monto-min" step="0.01" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="filtro-v-monto-max">Monto máx. (USD)</label>
+                                <input type="number" id="filtro-v-monto-max" step="0.01" min="0">
+                            </div>
+                        </div>
+                        <div class="btn-row">
+                            <button id="btn-filtrar-v" class="btn btn-primary">Aplicar filtros</button>
+                            <button id="btn-limpiar-v" class="btn btn-outline">Limpiar</button>
+                        </div>
+                    </div>
+
+                    <div id="resumen-ventas" class="resumen-inventario"></div>
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Fecha</th>
+                                    <th>Cajera</th>
+                                    <th>Comprador</th>
+                                    <th>Productos</th>
+                                    <th>Pago</th>
+                                    <th>Total</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-ventas"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- ---------- PANEL: CAJA (master) ---------- -->
+                <section id="panel-caja" class="card panel hidden">
+                    <h3>Dinero / Caja</h3>
+                    <p class="subtitle">El dinero que entra (ventas automáticas y manuales) y lo que se paga (gastos).</p>
+
+                    <div id="resumen-caja" class="resumen-caja"></div>
+
+                    <div class="card-inner small-gap">
+                        <h3>Registrar movimiento manual</h3>
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="caja-tipo">Tipo</label>
+                                <select id="caja-tipo">
+                                    <option value="ingreso">Ingreso (entra dinero)</option>
+                                    <option value="gasto">Gasto (sale dinero)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="caja-nombre">Nombre (a quién / de qué)</label>
+                                <input type="text" id="caja-nombre" placeholder="Ej. Proveedor XYZ">
+                            </div>
+                        </div>
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="caja-motivo">Motivo</label>
+                                <select id="caja-motivo"></select>
+                            </div>
+                            <div class="form-group hidden" id="caja-motivo-otro-group">
+                                <label for="caja-motivo-otro">Motivo personalizado</label>
+                                <input type="text" id="caja-motivo-otro" placeholder="Escribe el motivo">
+                            </div>
+                        </div>
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="caja-moneda">Moneda</label>
+                                <select id="caja-moneda">
+                                    <option value="USD">Dolar ($)</option>
+                                    <option value="VES">Bolivares (Bs)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="caja-monto">Monto</label>
+                                <input type="number" id="caja-monto" step="0.01" min="0.01" placeholder="Ej. 100">
+                            </div>
+                        </div>
+                        <button id="btn-agregar-caja" class="btn btn-success btn-full">Guardar movimiento</button>
+                    </div>
+
+                    <div class="table-wrapper small-gap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Origen</th>
+                                    <th>Nombre</th>
+                                    <th>Motivo</th>
+                                    <th>Monto (USD)</th>
+                                    <th>En Bs</th>
+                                    <th>Registró</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-caja"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- ---------- PANEL: CAJERAS (master) ---------- -->
+                <section id="panel-cajeros" class="card panel hidden">
+                    <h3>Cajeras / Vendedoras</h3>
+                    <p class="subtitle">Crea las cajeras con su nombre y clave. Solo ellas pueden registrar ventas.</p>
+
+                    <div class="card-inner">
+                        <h3 id="titulo-form-cajero">Crear Cajera</h3>
+                        <form id="form-cajero">
+                            <div class="form-row-2">
+                                <div class="form-group">
+                                    <label for="cajero-nombre">Nombre real</label>
+                                    <input type="text" id="cajero-nombre" placeholder="Ej. María Pérez">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cajero-usuario">Usuario</label>
+                                    <input type="text" id="cajero-usuario" placeholder="Ej. maria01">
+                                </div>
+                            </div>
+                            <div class="form-row-2">
+                                <div class="form-group">
+                                    <label for="cajero-clave">Clave</label>
+                                    <input type="password" id="cajero-clave" placeholder="Mínimo 4 caracteres">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cajero-clave-confirmar">Confirmar clave</label>
+                                    <input type="password" id="cajero-clave-confirmar" placeholder="Repite la clave">
+                                </div>
+                            </div>
+                            <button type="submit" id="btn-guardar-cajero" class="btn btn-primary">Crear Cajera</button>
+                        </form>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Nombre</th>
+                                    <th>Estado</th>
+                                    <th>Creada</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-cajeros"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- ---------- PANEL: SESIONES (master) ---------- -->
+                <section id="panel-sesiones" class="card panel hidden">
+                    <h3>Registro de Accesos (entradas y salidas)</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Rol</th>
+                                    <th>Entró</th>
+                                    <th>Salió</th>
+                                    <th>Notas</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-sesiones"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- ---------- PANEL: MI CUENTA (ambos) ---------- -->
+                <section id="panel-cuenta" class="card panel hidden">
+                    <h3>Mi Cuenta</h3>
+                    <p class="subtitle">Usuario actual: <span id="cuenta-usuario-actual"></span></p>
+                    <form id="form-cuenta" class="login-card">
+                        <div class="form-group">
+                            <label for="cuenta-clave-actual">Clave actual</label>
+                            <input type="password" id="cuenta-clave-actual">
+                        </div>
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="cuenta-clave-nueva">Nueva clave</label>
+                                <input type="password" id="cuenta-clave-nueva">
+                            </div>
+                            <div class="form-group">
+                                <label for="cuenta-clave-confirmar">Confirmar nueva clave</label>
+                                <input type="password" id="cuenta-clave-confirmar">
+                            </div>
+                        </div>
+                        <button type="submit" id="btn-cambiar-clave" class="btn btn-primary">Cambiar clave</button>
+                    </form>
+                </section>
+
+                <!-- ---------- PANEL: PRODUCTOS (cajera, solo lectura) ---------- -->
+                <section id="panel-productos" class="card panel hidden">
+                    <h3>Productos</h3>
+                    <p class="subtitle">Lista de productos (solo lectura). Puedes buscar por nombre, precio o categoría.</p>
+                    <div class="inventario-tools form-row-2">
+                        <input type="text" id="buscar-productos" placeholder="🔍 Buscar por nombre, ID, categoría o precio (máx.)...">
+                        <input type="text" id="filtro-categoria-prod" placeholder="Filtrar por categoría...">
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Categoría</th>
+                                    <th>Unidad</th>
+                                    <th>Precio</th>
+                                    <th>Disponibilidad</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-productos"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- ---------- PANEL: REGISTRAR VENTA (cajera) ---------- -->
+                <section id="panel-registrar-venta" class="card panel hidden">
+                    <h3>Registrar Venta</h3>
+
+                    <form id="form-vta">
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="vta-producto">Producto</label>
+                                <select id="vta-producto"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="vta-cantidad">Cantidad</label>
+                                <input type="number" id="vta-cantidad" min="0.01" step="0.01" placeholder="Ej. 2">
+                            </div>
+                        </div>
+                        <button type="submit" id="btn-agregar-producto" class="btn btn-secondary btn-full">Agregar al carrito</button>
+                    </form>
+
+                    <div class="table-wrapper small-gap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Producto</th>
+                                    <th>Cant.</th>
+                                    <th>P. Unit.</th>
+                                    <th>Subtotal</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-vta-cart"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="total-banner">
+                        <span>Total de la venta:</span>
+                        <strong id="total-venta">$0.00</strong>
+                    </div>
+
+                    <div class="form-row-2 small-gap">
+                        <div class="form-group">
+                            <label for="vta-cliente">Nombre del comprador (opcional)</label>
+                            <input type="text" id="vta-cliente" placeholder="Ej. Pedro Pérez">
+                        </div>
+                        <div class="form-group">
+                            <label for="vta-cedula">Cédula (opcional)</label>
+                            <input type="text" id="vta-cedula" placeholder="Ej. V-12345678">
+                        </div>
+                    </div>
+
+                    <div class="card-inner small-gap">
+                        <h3>Pago (puedes dividir en varios métodos)</h3>
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="pago-metodo">Método de pago</label>
+                                <select id="pago-metodo"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="pago-monto" id="label-pago-monto">Monto</label>
+                                <input type="number" id="pago-monto" step="0.01" min="0" placeholder="Monto a cobrar">
+                            </div>
+                        </div>
+                        <div id="pago-extra" class="form-row-2"></div>
+                        <div id="pago-info" class="subtitle"></div>
+                        <div class="btn-row">
+                            <button type="button" id="btn-usar-saldo" class="btn btn-outline">Usar saldo restante</button>
+                            <button type="button" id="btn-agregar-pago" class="btn btn-secondary">Agregar pago</button>
+                        </div>
+                    </div>
+
+                    <div class="table-wrapper small-gap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Método</th>
+                                    <th>Moneda</th>
+                                    <th>Monto</th>
+                                    <th>Detalle</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-vta-pagos"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="total-banner">
+                        <span>Total pagado:</span>
+                        <strong id="total-pagado">$0.00</strong>
+                    </div>
+
+                    <div class="form-group small-gap">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="vta-generar-recibo" checked> Generar recibo PDF al guardar
+                        </label>
+                    </div>
+
+                    <button id="btn-registrar-venta" class="btn btn-success btn-full">
+                        Registrar Venta
+                    </button>
+                    <button id="btn-cancelar-venta" class="btn btn-outline btn-full" style="margin-top: 0.5rem;">
+                        Cancelar y limpiar
+                    </button>
+                </section>
+
+                <!-- ---------- PANEL: MIS VENTAS (cajera) ---------- -->
+                <section id="panel-mis-ventas" class="card panel hidden">
+                    <h3>Mis Ventas</h3>
+                    <p class="subtitle">Tus ventas registradas. Puedes generar el recibo de cualquier venta (pedirá nombre, cédula y dirección).</p>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Fecha</th>
+                                    <th>Comprador</th>
+                                    <th>Productos</th>
+                                    <th>Pago</th>
+                                    <th>Total</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-mis-ventas"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- ==================================================================== -->
+    <!-- MODAL DE CONFIRMACION                                               -->
+    <!-- ==================================================================== -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 id="modal-titulo"></h3>
+            <div id="modal-texto" class="modal-texto"></div>
+            <div id="modal-botones" class="modal-botones"></div>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
