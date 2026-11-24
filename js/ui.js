@@ -357,7 +357,8 @@ export function resumenPago(pg) {
         case "efectivo_bs":
         case "efectivo_usd": {
             const partes = [];
-            if (d.serial) partes.push(`Serial: ${d.serial}`);
+            if (Array.isArray(d.serials) && d.serials.length) partes.push(`Seriales: ${d.serials.map(s => s.serial).join(", ")}`);
+            else if (d.serial) partes.push(`Serial: ${d.serial}`);
             if (d.billetes) partes.push(`Billetes: ${d.billetes}`);
             if (d.recibido != null && d.recibido !== "") partes.push(`Recibió: ${formatearMonto(d.recibido, pg.moneda)}`);
             if (d.vuelto != null && Number(d.vuelto) > 0) partes.push(`Cambio: ${formatearMonto(d.vuelto, pg.moneda)}`);

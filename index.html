@@ -500,18 +500,12 @@
 
                     <div class="card-inner small-gap">
                         <h3>Pago (puedes dividir en varios métodos)</h3>
-                        <div class="form-row-2">
-                            <div class="form-group">
-                                <label for="pago-metodo">Método de pago</label>
-                                <select id="pago-metodo"></select>
-                            </div>
-                            <div class="form-group">
-                                <label for="pago-monto" id="label-pago-monto">Monto</label>
-                                <input type="number" id="pago-monto" step="0.01" min="0" placeholder="Monto a cobrar">
-                            </div>
+                        <div class="form-group">
+                            <label for="pago-metodo">Método de pago</label>
+                            <select id="pago-metodo"></select>
                         </div>
-                        <div id="pago-extra" class="form-row-2"></div>
                         <div id="pago-info" class="subtitle"></div>
+                        <div id="pago-campos"></div>
                         <div class="btn-row">
                             <button type="button" id="btn-usar-saldo" class="btn btn-outline">Usar saldo restante</button>
                             <button type="button" id="btn-agregar-pago" class="btn btn-secondary">Agregar pago</button>

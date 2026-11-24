@@ -636,3 +636,122 @@ th {
     flex: 1;
     min-width: 120px;
 }
+
+/* --------------------------------------------------------------------------
+   SELECTOR DE BILLETES (pago en efectivo)
+   -------------------------------------------------------------------------- */
+.form-label-titulo {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.4rem;
+}
+
+.pago-estado {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
+}
+
+.pe-item {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.pe-item span {
+    font-size: 0.78rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.pe-item strong {
+    font-size: 1.15rem;
+    color: #1e293b;
+}
+
+.pe-falta {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.pe-falta strong {
+    color: #dc2626;
+}
+
+.billetes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.billete-tile {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.5rem;
+    text-align: center;
+    background: #fff;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.billete-tile.activo {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.billete-valor {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #1e293b;
+    margin-bottom: 0.3rem;
+}
+
+.billete-controles {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.billete-cant {
+    min-width: 1.5rem;
+    text-align: center;
+    font-weight: 700;
+}
+
+.pago-totales {
+    margin-top: 0.6rem;
+    padding: 0.7rem 0.9rem;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    font-size: 0.95rem;
+}
+
+.pago-totales strong {
+    font-size: 1rem;
+    color: #1e293b;
+}
+
+.seriales-box {
+    margin-top: 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.75rem;
+}
+
+.seriales-lista {
+    margin-top: 0.5rem;
+}

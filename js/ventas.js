@@ -112,60 +112,172 @@ function restanteUsd() {
 // ----------------------------------------------------------------------------
 // Campos dinamicos segun el metodo de pago elegido
 // ----------------------------------------------------------------------------
+
+// Denominaciones de billetes para el selector de billetes (efectivo).
+const BILLETES_USD = [1, 2, 5, 10, 20, 50, 100];
+const BILLETES_VES = [2, 5, 10, 20, 50, 100, 200, 500, 1000];
+
+// Estado del selector de billetes mientras se arma UN pago en efectivo.
+let billetesContador = {};   // { "20": 2, "10": 1 }  -> denominacion: cantidad
+let serialesMap = {};        // { "20-0": "ABC123", "20-1": "" }
+let serialesActivos = false; // si el usuario activo "registrar seriales"
+
+function resetearBilletes() {
+    billetesContador = {};
+    serialesMap = {};
+    serialesActivos = false;
+}
+
+function sumarBillete(valor) {
+    billetesContador[valor] = (billetesContador[valor] || 0) + 1;
+    renderizarCamposPago();
+}
+function restarBillete(valor) {
+    const actual = billetesContador[valor] || 0;
+    if (actual <= 1) delete billetesContador[valor];
+    else billetesContador[valor] = actual - 1;
+    renderizarCamposPago();
+}
+
+function totalBilletes() {
+    return Object.entries(billetesContador).reduce((acc, [v, c]) => acc + Number(v) * c, 0);
+}
+
+function resumenBilletes() {
+    return Object.entries(billetesContador)
+        .sort((a, b) => Number(b[0]) - Number(a[0]))
+        .map(([v, c]) => `${c}x${v}`)
+        .join(" + ");
+}
+
 function monedaMetodoSeleccionado() {
-    const metodo = document.getElementById("pago-metodo").value;
-    return obtenerMetodo(metodo).moneda;
+    return obtenerMetodo(document.getElementById("pago-metodo").value).moneda;
+}
+
+function esMetodoEfectivo(metodo) {
+    return metodo === "efectivo_bs" || metodo === "efectivo_usd";
 }
 
 function renderizarCamposPago() {
     const metodo = document.getElementById("pago-metodo").value;
-    const contenedor = document.getElementById("pago-extra");
     const info = document.getElementById("pago-info");
+    const campos = document.getElementById("pago-campos");
     const moneda = obtenerMetodo(metodo).moneda;
+    const esEfectivo = esMetodoEfectivo(metodo);
 
-    // Actualizamos la etiqueta del campo monto.
-    const labelMonto = document.getElementById("label-pago-monto");
-    if (labelMonto) labelMonto.textContent = `Monto (${moneda === "VES" ? "Bolívares" : "Dólares"})`;
-
-    // Informacion del saldo restante.
+    // Banner de estado: total, ya cobrado y falta, en USD y en la moneda del metodo.
+    const totalUsd = totalCarritoUsd();
+    const pagadoUsd = totalPagadoUsd();
     const restante = restanteUsd();
+    const nombreMoneda = moneda === "VES" ? "Bolívares (Bs)" : "Dólares ($)";
     if (info) {
-        info.innerHTML = `Total a cobrar: <strong>${escaparHtml(formatearMonto(totalCarritoUsd(), "USD"))}</strong>` +
-            ` · Pagado: <strong>${escaparHtml(formatearMonto(totalPagadoUsd(), "USD"))}</strong>` +
-            ` · Resta: <strong>${escaparHtml(formatearMonto(restante, "USD"))}</strong>` +
-            ` <span class="sub-dato">(≈ ${escaparHtml(formatearMonto(convertirDesdeUsd(restante, moneda), moneda))} en este método)</span>`;
+        info.innerHTML = `
+            <div class="pago-estado">
+                <div class="pe-item"><span>Total venta</span><strong>${escaparHtml(formatearMonto(totalUsd, "USD"))}</strong>
+                    <span class="sub-dato">≈ ${escaparHtml(formatearMonto(convertirDesdeUsd(totalUsd, "VES"), "VES"))}</span></div>
+                <div class="pe-item"><span>Ya cobrado</span><strong>${escaparHtml(formatearMonto(pagadoUsd, "USD"))}</strong></div>
+                <div class="pe-item pe-falta"><span>Falta cobrar</span><strong>${escaparHtml(formatearMonto(restante, "USD"))}</strong>
+                    <span class="sub-dato">≈ ${escaparHtml(formatearMonto(convertirDesdeUsd(restante, moneda), moneda))}</span></div>
+            </div>
+            <span class="sub-dato">Este método cobra en: ${escaparHtml(nombreMoneda)}</span>`;
     }
 
-    // Campos extra por metodo.
-    const campos = {
-        efectivo_bs: `
-            <div class="form-group"><label for="pago-billetes">Billetes recibidos (ej. 2x100 + 1x50)</label>
-                <input type="text" id="pago-billetes" placeholder="Describe los billetes"></div>
-            <div class="form-group"><label for="pago-recibido">¿Cuánto dio el cliente? (Bs)</label>
-                <input type="number" id="pago-recibido" step="0.01" min="0" placeholder="Monto recibido"></div>`,
-        efectivo_usd: `
-            <div class="form-group"><label for="pago-serial">Serial del billete (dólar)</label>
-                <input type="text" id="pago-serial" placeholder="Serial del billete"></div>
-            <div class="form-group"><label for="pago-billetes">Billetes recibidos (ej. 1x$20 + 1x$10)</label>
-                <input type="text" id="pago-billetes" placeholder="Describe los billetes"></div>
-            <div class="form-group"><label for="pago-recibido">¿Cuánto dio el cliente? (USD)</label>
-                <input type="number" id="pago-recibido" step="0.01" min="0" placeholder="Monto recibido"></div>`,
-        punto: `
-            <div class="form-group"><label for="pago-referencia">N° de aprobación / referencia (del papel)</label>
-                <input type="text" id="pago-referencia" placeholder="N° de aprobación"></div>`,
-        pago_movil: `
-            <div class="form-group"><label for="pago-referencia">Últimos 4-6 dígitos del pago</label>
-                <input type="text" id="pago-referencia" maxlength="6" placeholder="Ej. 1234 o 482913"></div>
-            <div class="form-group"><label for="pago-banco">Banco</label>
-                <input type="text" id="pago-banco" placeholder="Ej. Banesco"></div>
-            <div class="form-group"><label for="pago-cedula-pagador">Cédula de quien paga (opcional)</label>
-                <input type="text" id="pago-cedula-pagador" placeholder="Ej. V-12345678"></div>`,
-        zelle: `
-            <div class="form-group"><label for="pago-cuenta">Correo o teléfono de la cuenta Zelle</label>
-                <input type="text" id="pago-cuenta" placeholder="correo@ejemplo.com o 0412-0000000"></div>`,
-    };
+    if (esEfectivo) {
+        campos.innerHTML = renderizarSelectorBilletes(moneda);
+    } else {
+        campos.innerHTML = `
+            <div class="form-group">
+                <label for="pago-monto">Monto a cobrar con este método (${nombreMoneda})</label>
+                <input type="number" id="pago-monto" step="0.01" min="0" placeholder="Ej. ${moneda === "VES" ? "1000.00" : "10.00"}">
+            </div>
+            ${camposExtraMetodo(metodo)}`;
+    }
 
-    contenedor.innerHTML = campos[metodo] || "";
+    // El boton "usar saldo restante" solo tiene sentido en metodos sin billetes.
+    const btnSaldo = document.getElementById("btn-usar-saldo");
+    if (btnSaldo) btnSaldo.classList.toggle("hidden", esEfectivo);
+}
+
+function camposExtraMetodo(metodo) {
+    switch (metodo) {
+        case "punto":
+            return `<div class="form-group"><label for="pago-referencia">N° de aprobación / referencia (del papel)</label>
+                <input type="text" id="pago-referencia" placeholder="N° de aprobación"></div>`;
+        case "pago_movil":
+            return `<div class="form-group"><label for="pago-referencia">Últimos 4-6 dígitos del pago</label>
+                <input type="text" id="pago-referencia" maxlength="6" placeholder="Ej. 1234 o 482913"></div>
+                <div class="form-group"><label for="pago-banco">Banco</label>
+                <input type="text" id="pago-banco" placeholder="Ej. Banesco"></div>
+                <div class="form-group"><label for="pago-cedula-pagador">Cédula de quien paga (opcional)</label>
+                <input type="text" id="pago-cedula-pagador" placeholder="Ej. V-12345678"></div>`;
+        case "zelle":
+            return `<div class="form-group"><label for="pago-cuenta">Correo o teléfono de la cuenta Zelle</label>
+                <input type="text" id="pago-cuenta" placeholder="correo@ejemplo.com o 0412-0000000"></div>`;
+        default:
+            return "";
+    }
+}
+
+function renderizarSelectorBilletes(moneda) {
+    const billetes = moneda === "VES" ? BILLETES_VES : BILLETES_USD;
+    const simbolo = moneda === "VES" ? "Bs" : "$";
+    const recibido = totalBilletes();
+    const restanteEnM = convertirDesdeUsd(restanteUsd(), moneda);
+    const aplicado = Math.min(recibido, restanteEnM);
+    const vuelto = Math.max(0, Number((recibido - aplicado).toFixed(2)));
+
+    const tiles = billetes.map(v => {
+        const cant = billetesContador[v] || 0;
+        return `
+            <div class="billete-tile ${cant > 0 ? "activo" : ""}">
+                <div class="billete-valor">${simbolo}${v}</div>
+                <div class="billete-controles">
+                    <button type="button" class="btn btn-outline btn-sm" data-billete="-" data-valor="${v}">−</button>
+                    <span class="billete-cant">${cant}</span>
+                    <button type="button" class="btn btn-primary btn-sm" data-billete="+" data-valor="${v}">+</button>
+                </div>
+            </div>`;
+    }).join("");
+
+    const serialesHTML = moneda === "USD" ? renderizarSeriales() : "";
+
+    return `
+        <label class="form-label-titulo">Billetes que entregó el cliente (toca + para sumar)</label>
+        <div class="billetes-grid">${tiles}</div>
+        <div class="pago-totales">
+            <span>Recibió: <strong>${escaparHtml(formatearMonto(recibido, moneda))}</strong></span>
+            <span>A cobrar: <strong>${escaparHtml(formatearMonto(aplicado, moneda))}</strong></span>
+            <span>Cambio: <strong>${escaparHtml(formatearMonto(vuelto, moneda))}</strong></span>
+        </div>
+        ${serialesHTML}`;
+}
+
+function renderizarSeriales() {
+    const entradas = Object.entries(billetesContador).sort((a, b) => Number(b[0]) - Number(a[0]));
+    let html = `
+        <div class="seriales-box">
+            <label class="checkbox-label">
+                <input type="checkbox" id="seriales-toggle" ${serialesActivos ? "checked" : ""}> Registrar serial de cada billete (opcional)
+            </label>`;
+
+    if (serialesActivos) {
+        let filas = "";
+        entradas.forEach(([valor, cant]) => {
+            for (let i = 0; i < cant; i++) {
+                const clave = `${valor}-${i}`;
+                const serialActual = serialesMap[clave] || "";
+                filas += `
+                    <div class="form-group">
+                        <label for="serial-${clave}">$${valor} · billete #${i + 1}</label>
+                        <input type="text" id="serial-${clave}" data-serial="${clave}" value="${escaparHtml(serialActual)}" placeholder="Serial (opcional)">
+                    </div>`;
+            }
+        });
+        if (!filas) filas = `<span class="sub-dato">Agrega billetes para poder registrar sus seriales.</span>`;
+        html += `<div class="form-row-2 seriales-lista">${filas}</div>`;
+    }
+    html += `</div>`;
+    return html;
 }
 
 // ----------------------------------------------------------------------------
@@ -176,10 +288,37 @@ export function inicializarVentas() {
     const selMetodo = document.getElementById("pago-metodo");
     if (selMetodo) {
         selMetodo.innerHTML = METODOS_PAGO.map(m =>
-            `<option value="${m.codigo}">${m.nombre}</option>`
+            `<option value="${m.codigo}">${m.nombre} (${m.moneda === "VES" ? "Bs" : "$"})</option>`
         ).join("");
-        selMetodo.addEventListener("change", renderizarCamposPago);
+        selMetodo.addEventListener("change", () => {
+            resetearBilletes();
+            renderizarCamposPago();
+        });
         renderizarCamposPago();
+    }
+
+    // --- Botones de billetes (+/-) y checkbox de seriales ---
+    const contenedorCampos = document.getElementById("pago-campos");
+    if (contenedorCampos) {
+        contenedorCampos.addEventListener("click", (e) => {
+            const btn = e.target.closest("button[data-billete]");
+            if (!btn) return;
+            const valor = Number(btn.dataset.valor);
+            if (btn.dataset.billete === "+") sumarBillete(valor);
+            else restarBillete(valor);
+        });
+        contenedorCampos.addEventListener("change", (e) => {
+            if (e.target.id === "seriales-toggle") {
+                serialesActivos = e.target.checked;
+                renderizarCamposPago();
+            }
+        });
+        contenedorCampos.addEventListener("input", (e) => {
+            // Guardamos el serial escrito para no perderlo al redibujar.
+            if (e.target.dataset && e.target.dataset.serial) {
+                serialesMap[e.target.dataset.serial] = e.target.value;
+            }
+        });
     }
 
     // --- Agregar producto al carrito ---
@@ -225,12 +364,13 @@ export function inicializarVentas() {
         agregarPago();
     });
 
-    // --- Usar saldo restante ---
+    // --- Usar saldo restante (solo para metodos sin billetes) ---
     document.getElementById("btn-usar-saldo").addEventListener("click", () => {
         const moneda = monedaMetodoSeleccionado();
         const restante = convertirDesdeUsd(restanteUsd(), moneda);
         if (restante <= 0) return mostrarAlerta("Ya no queda saldo por cobrar.", "err");
-        document.getElementById("pago-monto").value = Number(restante.toFixed(2));
+        const montoEl = document.getElementById("pago-monto");
+        if (montoEl) montoEl.value = Number(restante.toFixed(2));
     });
 
     // --- Quitar pago ---
@@ -298,63 +438,87 @@ function agregarPago() {
 
     const metodo = document.getElementById("pago-metodo").value;
     const moneda = obtenerMetodo(metodo).moneda;
-    const monto = parseFloat(document.getElementById("pago-monto").value);
-
-    if (isNaN(monto) || monto <= 0) {
-        return mostrarAlerta("Escribe un monto valido para este pago.", "err");
-    }
-
-    const montoUsd = convertirAUsd(monto, moneda);
     const restante = restanteUsd();
+    const restanteEnM = convertirDesdeUsd(restante, moneda);
 
-    if (montoUsd > restante + 0.01) {
-        return mostrarAlerta(`El monto supera lo que falta por cobrar (${formatearMonto(restante, "USD")}).`, "err");
-    }
-
-    // Datos propios de cada metodo.
-    const datos = {};
     const leer = id => {
         const el = document.getElementById(id);
         return el ? el.value.trim() : "";
     };
-    const leerNum = id => {
-        const el = document.getElementById(id);
-        const v = el ? parseFloat(el.value) : NaN;
-        return isNaN(v) ? null : v;
-    };
 
-    if (metodo === "efectivo_bs" || metodo === "efectivo_usd") {
-        datos.billetes = leer("pago-billetes");
-        const recibido = leerNum("pago-recibido");
-        if (recibido !== null && recibido < monto) {
-            return mostrarAlerta("Lo recibido no puede ser menor que el monto a cobrar.", "err");
+    const datos = {};
+    let monto;      // monto aplicado a la venta (en la moneda del metodo)
+    let montoUsd;
+
+    if (esMetodoEfectivo(metodo)) {
+        // --- Efectivo: el monto sale de los billetes seleccionados ---
+        if (restante <= 0.004) {
+            return mostrarAlerta("Ya no queda saldo por cobrar.", "err");
         }
-        datos.recibido = recibido !== null ? recibido : monto;
-        datos.vuelto = Number((datos.recibido - monto).toFixed(2));
+        const recibido = totalBilletes();
+        if (recibido <= 0) {
+            return mostrarAlerta("Selecciona los billetes que entregó el cliente (toca los botones +).", "err");
+        }
+
+        monto = Math.min(recibido, restanteEnM);           // lo que cubre la venta
+        montoUsd = convertirAUsd(monto, moneda);
+        datos.billetes = resumenBilletes();
+        datos.recibido = Number(recibido.toFixed(2));
+        datos.vuelto = Number((recibido - monto).toFixed(2));
+
         if (metodo === "efectivo_usd") {
-            datos.serial = leer("pago-serial");
+            // Seriales (opcional): uno por billete, solo los que tengan texto.
+            const seriales = [];
+            Object.keys(billetesContador).sort((a, b) => Number(b) - Number(a)).forEach(valor => {
+                for (let i = 0; i < billetesContador[valor]; i++) {
+                    const s = (serialesMap[`${valor}-${i}`] || "").trim();
+                    if (s) seriales.push({ valor: Number(valor), serial: s });
+                }
+            });
+            datos.serials = seriales;
         }
-    } else if (metodo === "punto") {
-        datos.referencia = leer("pago-referencia");
-        if (!datos.referencia) return mostrarAlerta("Escribe el N° de aprobación/referencia del punto.", "err");
-    } else if (metodo === "pago_movil") {
-        datos.referencia = leer("pago-referencia");
-        datos.banco = leer("pago-banco");
-        datos.cedula_pagador = leer("pago-cedula-pagador");
-        if (!/^\d{4,6}$/.test(datos.referencia)) {
-            return mostrarAlerta("Escribe los últimos 4 a 6 dígitos del pago móvil (solo números).", "err");
+    } else {
+        // --- Sin billetes: se escribe el monto ---
+        const montoInput = parseFloat(document.getElementById("pago-monto").value);
+        if (isNaN(montoInput) || montoInput <= 0) {
+            return mostrarAlerta("Escribe un monto valido para este pago.", "err");
         }
-        if (!datos.banco) return mostrarAlerta("Escribe el banco del pago móvil.", "err");
-    } else if (metodo === "zelle") {
-        datos.cuenta = leer("pago-cuenta");
-        if (!datos.cuenta) return mostrarAlerta("Escribe el correo o teléfono de la cuenta Zelle.", "err");
+        monto = Number(montoInput.toFixed(2));
+        montoUsd = convertirAUsd(monto, moneda);
+        if (montoUsd > restante + 0.01) {
+            return mostrarAlerta(`El monto supera lo que falta por cobrar (${formatearMonto(restante, "USD")}).`, "err");
+        }
+
+        if (metodo === "punto") {
+            datos.referencia = leer("pago-referencia");
+            if (!datos.referencia) return mostrarAlerta("Escribe el N° de aprobación/referencia del punto.", "err");
+        } else if (metodo === "pago_movil") {
+            datos.referencia = leer("pago-referencia");
+            datos.banco = leer("pago-banco");
+            datos.cedula_pagador = leer("pago-cedula-pagador");
+            if (!/^\d{4,6}$/.test(datos.referencia)) {
+                return mostrarAlerta("Escribe los últimos 4 a 6 dígitos del pago móvil (solo números).", "err");
+            }
+            if (!datos.banco) return mostrarAlerta("Escribe el banco del pago móvil.", "err");
+        } else if (metodo === "zelle") {
+            datos.cuenta = leer("pago-cuenta");
+            if (!datos.cuenta) return mostrarAlerta("Escribe el correo o teléfono de la cuenta Zelle.", "err");
+        }
     }
 
-    state.pagosEnCurso.push({ metodo, moneda, monto: Number(monto.toFixed(2)), monto_usd: Number(montoUsd.toFixed(2)), datos });
+    state.pagosEnCurso.push({
+        metodo,
+        moneda,
+        monto: Number(monto.toFixed(2)),
+        monto_usd: Number(montoUsd.toFixed(2)),
+        datos,
+    });
 
-    // Limpiamos los campos de pago.
-    document.getElementById("pago-monto").value = "";
-    ["pago-billetes", "pago-serial", "pago-referencia", "pago-banco", "pago-cedula-pagador", "pago-cuenta", "pago-recibido"]
+    // Limpiamos los campos del pago (incluye billetes y seriales).
+    resetearBilletes();
+    const montoEl = document.getElementById("pago-monto");
+    if (montoEl) montoEl.value = "";
+    ["pago-referencia", "pago-banco", "pago-cedula-pagador", "pago-cuenta"]
         .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
 
     renderizarPagosEnCurso();
@@ -482,10 +646,10 @@ async function registrarVenta() {
 function limpiarFormularioVenta() {
     state.listaVenta = [];
     state.pagosEnCurso = [];
+    resetearBilletes();
     document.getElementById("vta-cliente").value = "";
     document.getElementById("vta-cedula").value = "";
     document.getElementById("vta-cantidad").value = "";
-    document.getElementById("pago-monto").value = "";
     renderizarListaVenta();
     renderizarPagosEnCurso();
     renderizarSelectProductos();

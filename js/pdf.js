@@ -131,7 +131,10 @@ export function generarReciboVentaPDF(venta, itemsArray = null, pagosArray = nul
                 if (pg.metodo === "punto" && d.referencia) detalle = ` · N° ${d.referencia}`;
                 if (pg.metodo === "pago_movil" && d.referencia) detalle = ` · Ref ${d.referencia} · ${d.banco || ""}`;
                 if (pg.metodo === "zelle" && d.cuenta) detalle = ` · ${d.cuenta}`;
-                if (pg.metodo === "efectivo_usd" && d.serial) detalle = ` · Serial ${d.serial}`;
+                if (pg.metodo === "efectivo_usd") {
+                    if (Array.isArray(d.serials) && d.serials.length) detalle = ` · Seriales: ${d.serials.map(s => s.serial).join(", ")}`;
+                    else if (d.serial) detalle = ` · Serial ${d.serial}`;
+                }
                 doc.text(`${metodo.nombre}: ${formatearMonto(pg.monto, pg.moneda)}${detalle}`, 18, yTabla);
             });
         }
